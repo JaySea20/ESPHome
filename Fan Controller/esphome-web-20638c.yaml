@@ -75,6 +75,7 @@ number:
   - platform: template
     name: "Delta Low"
     id: Delta_Low
+    device_class: temperature
     optimistic: true
     min_value: 1
     max_value: 15
@@ -88,6 +89,7 @@ number:
   - platform: template
     name: "Delta High"
     id: Delta_High
+    device_class: temperature
     optimistic: true
     min_value: 10
     max_value: 30
@@ -144,6 +146,7 @@ number:
 sensor:
   - platform: template
     id: Cab_Temp
+    device_class: temperature
     name: "Cabinet Temp"
     unit_of_measurement: "°F"
     accuracy_decimals: 1
@@ -163,7 +166,7 @@ sensor:
     update_interval: 15s
     unit_of_measurement: "°F"
     filters:
-      - offset: -2.0
+      - offset: 0
       - round: 1
       - delta: 0.1
       - lambda: return x * (9.0/5.0) + 32.0;
@@ -175,7 +178,7 @@ sensor:
     update_interval: 15s
     unit_of_measurement: "°F"
     filters:
-      - offset: -2.0
+      - offset: 0
       - round: 1
       - delta: 0.1
       - lambda: return x * (9.0/5.0) + 32.0;
@@ -187,7 +190,7 @@ sensor:
     update_interval: 15s
     unit_of_measurement: "°F"
     filters:
-      - offset: -2.0
+      - offset: 0
       - round: 1
       - delta: 0.1
       - lambda: return x * (9.0/5.0) + 32.0;
