@@ -1,0 +1,305 @@
+substitutions:
+  name: esphome-web-20638c
+  friendly_name: ESP32-36
+###### PINS #######
+  onewire_pin: GPIO33
+  sda_pin: GPIO21
+  scl_pin: GPIO22
+  rpm_pin: GPIO27
+  fan_relay_pin: GPIO25
+  ledc_pin: GPIO26
+  dallas01: '0x7b0620129e6b1628'
+  dallas02: '0xf9062011bfc8ef28'
+  dallas03: '0xad0620150dd11728'
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2024.6.0
+  name_add_mac_suffix: false
+  project:
+    name: esphome.web
+    version: dev
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+
+# Allow Over-The-Air updates
+ota:
+- platform: esphome
+
+# Allow provisioning Wi-Fi via serial
+improv_serial:
+
+wifi:
+  # Set up a wifi access point
+  ap: {}
+
+# In combination with the `ap` this allows the user
+# to provision wifi credentials to the device via WiFi AP.
+captive_portal:
+
+dashboard_import:
+  package_import_url: github://esphome/example-configs/esphome-web/esp32.yaml@main
+  import_full_config: true
+
+# Sets up Bluetooth LE (Only on ESP32) to allow the user
+# to provision wifi credentials to the device.
+#esp32_improv:
+#  authorizer: none
+
+# To have a "next url" for improv serial
+web_server:
+
+
+one_wire:
+  - platform: gpio
+    pin: ${onewire_pin}
+
+i2c:
+  sda: ${sda_pin}
+  scl: ${scl_pin}
+  scan: False
+  id: bus_a
+
+number:
+  - platform: template
+    name: "Delta Low"
+    id: Delta_Low
+    optimistic: true
+    min_value: 1
+    max_value: 15
+    step: 1
+    restore_value: True
+    initial_value: 4
+    on_value:
+      then:
+        - script.execute: update_fan_speed
+
+  - platform: template
+    name: "Delta High"
+    id: Delta_High
+    optimistic: true
+    min_value: 10
+    max_value: 30
+    step: 1
+    restore_value: True
+    initial_value: 21
+    on_value:
+      then:
+        - script.execute: update_fan_speed
+
+  - platform: template
+    name: "Fan Low"
+    id: Fan_Low
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    restore_value: True
+    initial_value: 10
+    on_value:
+      then:
+        - script.execute: update_fan_speed
+
+  - platform: template
+    name: "Fan High"
+    id: Fan_High
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    restore_value: True
+    initial_value: 60
+    on_value:
+      then:
+        - script.execute: update_fan_speed
+
+  - platform: template
+    name: "Fan Speed"
+    id: Fan_Speed
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    restore_value: True
+    initial_value: 15
+    internal: True
+    on_value:
+      then:
+        - logger.log: "Fan Speed Changed"
+        - fan.turn_on: 
+            id: Exhaust_Fan
+            speed: !lambda return x;
+
+sensor:
+  - platform: template
+    id: Cab_Temp
+    name: "Cabinet Temp"
+    unit_of_measurement: "°F"
+    accuracy_decimals: 1
+    lambda: |-
+      return ((id(Cab_Temp_01).state + id(Cab_Temp_02).state + id(Cab_Temp_03).state)/3);
+    update_interval: 15s
+    filters:
+      - delta: 0.1
+    on_value:
+      then:
+        - script.execute: update_fan_speed
+
+  - platform: dallas_temp
+    address: ${dallas01}
+    name: "Cabinet Temp 01"
+    id: Cab_Temp_01
+    update_interval: 15s
+    unit_of_measurement: "°F"
+    filters:
+      - offset: -2.0
+      - round: 1
+      - delta: 0.1
+      - lambda: return x * (9.0/5.0) + 32.0;
+
+  - platform: dallas_temp
+    address: ${dallas02}
+    name: "Cabinet Temp 02"
+    id: Cab_Temp_02
+    update_interval: 15s
+    unit_of_measurement: "°F"
+    filters:
+      - offset: -2.0
+      - round: 1
+      - delta: 0.1
+      - lambda: return x * (9.0/5.0) + 32.0;
+
+  - platform: dallas_temp
+    address: ${dallas03}
+    name: "Cabinet Temp 03"
+    id: Cab_Temp_03
+    update_interval: 15s
+    unit_of_measurement: "°F"
+    filters:
+      - offset: -2.0
+      - round: 1
+      - delta: 0.1
+      - lambda: return x * (9.0/5.0) + 32.0;
+
+
+  - platform: bme280_i2c
+    address: 0x76
+    temperature:
+      name: "BME280 Temp"
+      id: BME_Temp
+      unit_of_measurement: "°F"
+      filters:
+        - round: 1
+        - delta: 0.1
+        - lambda: return x * (9.0/5.0) + 32.0;
+    humidity:
+      name: "BME280 Humidity"
+      id: BME_Hum
+      filters:
+        - round: 1
+        - delta: 0.1
+    update_interval: 15s
+
+  - platform: pulse_counter
+    pin: 
+      number: ${rpm_pin}
+      mode: INPUT_PULLUP
+    unit_of_measurement: 'RPM'
+    id: fan_RPM
+    name: "Fan RPM"
+    update_interval: 15s
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.5
+      - delta: 100
+      - lambda: return 10*round(x/10);
+    
+
+#  - platform: internal_temperature
+#    name: "Internal Temperature"
+#    id: Int_Temp
+
+switch:
+  - platform: gpio
+    pin: ${fan_relay_pin}
+    name: "Fan Power"
+    id: Fan_Power
+    restore_mode: ALWAYS_ON
+    internal: True
+    on_turn_on:
+    - logger.log: "Fan Power ON"
+    - switch.turn_off: Manual_Mode
+    on_turn_off:
+    - logger.log: "Fan Power OFF"
+
+  - platform: template
+    name: "Manual Mode"
+    id: Manual_Mode
+    optimistic: True
+    on_turn_on:
+    - logger.log: "MANUAL Mode Enabled"
+    on_turn_off:
+    - script.execute: update_fan_speed
+
+fan:
+  - platform: speed
+    output: PWM_Out
+    name: "Exhaust Fan"
+    id: Exhaust_Fan
+    restore_mode: ALWAYS_ON
+    on_turn_on:
+    - logger.log: "Fan Turned On!"
+    - script.execute: update_fan_speed
+    - switch.turn_on: Fan_Power
+    on_turn_off:
+    - logger.log: "Fan Turned Off!"
+    - switch.turn_off: Fan_Power
+
+output:
+  - platform: ledc
+    pin: ${ledc_pin}
+    id: PWM_Out
+    frequency: 15000hz
+
+script:
+  - id: update_fan_speed
+    then:
+#      - logger.log: "Update script called..."
+      - if:
+          condition:
+            switch.is_on: Manual_Mode
+          then:
+            logger.log: "Manual Mode is Set! Nothing to do here..."
+          else:
+            - logger.log: "Auto Enabled... Updating!"
+#            - logger.log:
+#                format: "The temperature sensor reports value %.1f"
+#                args: [ 'id(temp).state']
+#            - logger.log: "Auto Enabled... Updating!"
+            - number.set:
+                id: Fan_Speed
+                value: !lambda |-
+                  float pwm = (( id(Fan_High).state - id(Fan_Low).state )*((( 100/( id(Delta_High).state - id(Delta_Low).state ))*( id(Cab_Temp).state - 63 ))/100 ) ) + id(Fan_Low).state;
+                  if(pwm > id(Fan_High).state)
+                    {
+                      return id(Fan_High).state;
+                    }
+                  else
+                    {
+                      if(pwm < id(Fan_Low).state)
+                      {
+                        return id(Fan_Low).state;
+                      }
+                      return 1*round(pwm/1);
+                    }
